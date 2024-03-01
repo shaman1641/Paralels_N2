@@ -3,9 +3,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <omp.h>
+#include  <memory>
 #include <math.h>
 
-int Potoks = 40;
+int Potoks = 20;
 
 double cpuSecond()
 {
@@ -15,7 +16,7 @@ double cpuSecond()
 }
 
 
-void matrix_vector_product_omp12(double *a, double *b, double *c, int m, int n){
+void matrix_vector_product_omp12(std::shared_ptr<double []>  a, std::shared_ptr<double []>  b, std::shared_ptr<double []>  c, int m, int n){
     #pragma omp parallel num_threads(Potoks)
     {
         int nthreads = Potoks;
@@ -32,7 +33,7 @@ void matrix_vector_product_omp12(double *a, double *b, double *c, int m, int n){
     //printf("End m X v");
 }
 
-void vector_chislo_product_omp12(double *a, double b, double *c, int m){
+void vector_chislo_product_omp12(std::shared_ptr<double []>  a, double b, std::shared_ptr<double []>  c, int m){
     #pragma omp parallel num_threads(Potoks)
     {
         int nthreads = Potoks;
@@ -47,7 +48,7 @@ void vector_chislo_product_omp12(double *a, double b, double *c, int m){
     //printf("End v X c");
 }
 
-void vector_vector_minus_omp12(double *a, double *b, double *c, int m){
+void vector_vector_minus_omp12(std::shared_ptr<double []>  a, std::shared_ptr<double []>  b, std::shared_ptr<double []>  c, int m){
     #pragma omp parallel num_threads(Potoks)
     {
         int nthreads = Potoks;
@@ -62,17 +63,20 @@ void vector_vector_minus_omp12(double *a, double *b, double *c, int m){
     //printf("End v - v");
 }
 
-void iteration(double *a, double *b, double *x, double *x2, double t, int n, int m){
-    double* ans;
-    ans = (double*) malloc(sizeof(*ans) * m);
+void iteration(std::shared_ptr<double []>  a, std::shared_ptr<double []>  b, std::shared_ptr<double []>  x, std::shared_ptr<double []>  x2, double t, int n, int m){
+    //double* ans;
+    //ans = (double*) malloc(sizeof(*ans) * m);
+    std::shared_ptr<double[]>    ans (new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
     matrix_vector_product_omp12(a,x,ans,m,n);
     vector_vector_minus_omp12(ans, b, x2, m);
     vector_chislo_product_omp12(x2, t, ans, m);
     vector_vector_minus_omp12(x, ans, x2, m);
-    free(ans);
+    //free(ans);
 }
 
-double skobki(double *a,int n){
+double skobki(std::shared_ptr<double []>  a,int n){
     double sum = 0;
     for(int i =0; i<n; i++){
         sum += a[i];
@@ -80,10 +84,16 @@ double skobki(double *a,int n){
     return(sqrt(sum));
 }
 
-int test_con(double *a, double *b, double *x, int n, int m, double eps){
-    double *ans, *x2;
-    ans = (double*) malloc(sizeof(*ans) * m);
-    x2 = (double*) malloc(sizeof(*x2) * m);
+int test_con(std::shared_ptr<double []>  a, std::shared_ptr<double []>  b, std::shared_ptr<double []>  x, int n, int m, double eps){
+    //std::shared_ptr<double []> ans, *x2;
+    //ans = (double*) malloc(sizeof(*ans) * m);
+    //x2 = (double*) malloc(sizeof(*x2) * m);
+    std::shared_ptr<double[]>    ans (new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
+    std::shared_ptr<double[]>    x2 (new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
     matrix_vector_product_omp12(a,x,ans,m,n);
     vector_vector_minus_omp12(ans, b, x2, m);
     double test = skobki(x2, n)/skobki(b,n) < eps;
@@ -94,11 +104,11 @@ int test_con(double *a, double *b, double *x, int n, int m, double eps){
     else{
         return 0;
     }
-    free(x2);
-    free(ans);
+    //free(x2);
+    //free(ans);
 }
 
-void rehenie_omp(double *a, double *b, double *x, double *x2, double t, int n, int m, double eps){
+void rehenie_omp(std::shared_ptr<double []>  a, std::shared_ptr<double []>  b, std::shared_ptr<double []>  x, std::shared_ptr<double []>  x2, double t, int n, int m, double eps){
     double t2 = cpuSecond();
     do{
         iteration(a,b,x,x2,t,n,m);
@@ -107,7 +117,7 @@ void rehenie_omp(double *a, double *b, double *x, double *x2, double t, int n, i
     std::cout << "Elapsed time (paralel_1): " <<  t2 <<" sec.\n";
 }
 
-void rehenie_omp2(double *a, double *b, double *x, double *x2, double t, int n, int m, double eps){
+void rehenie_omp2(std::shared_ptr<double []>  a, std::shared_ptr<double []>  b, std::shared_ptr<double []>  x, std::shared_ptr<double []>  x2, double t, int n, int m, double eps){
     double t2 = cpuSecond();
     #pragma omp parallel num_threads(Potoks)
     {
@@ -118,9 +128,11 @@ void rehenie_omp2(double *a, double *b, double *x, double *x2, double t, int n, 
         int ub = (threadid == nthreads - 1) ? (m - 1) : (lb + items_per_thread - 1);
         int test_con1 = 0;
         do{
-            double* ans;
-            ans = (double*) malloc(sizeof(*ans) * m);
-            
+            //double* ans;
+            //ans = (double*) malloc(sizeof(*ans) * m);
+            std::shared_ptr<double[]>    ans (new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
             for (int i = lb; i <= ub; i++) {
                 ans[i] = 0.0;
                 for (int j = 0; j < n; j++)
@@ -139,10 +151,16 @@ void rehenie_omp2(double *a, double *b, double *x, double *x2, double t, int n, 
                 x2[i] = x[i] - ans[i];
             }
 
-            free(ans);
-            double *ans12, *x212;
-            ans12 = (double*) malloc(sizeof(*ans12) * m);
-            x212 = (double*) malloc(sizeof(*x212) * m);
+            //free(ans);
+            //std::shared_ptr<double []> ans12, *x212;
+            //ans12 = (double*) malloc(sizeof(*ans12) * m);
+            std::shared_ptr<double[]>    ans12 (new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
+            std::shared_ptr<double[]>    x212 (new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
+            //x212 = (double*) malloc(sizeof(*x212) * m);
             for (int i = lb; i <= ub; i++) {
                 ans12[i] = 0.0;
                 for (int j = 0; j < n; j++)
@@ -159,8 +177,8 @@ void rehenie_omp2(double *a, double *b, double *x, double *x2, double t, int n, 
             else{
                 test_con1 = 0;
             }
-            free(x212);
-            free(ans12);
+            //free(x212);
+            //free(ans12);
         }while(test_con1 != 1);
     }
     t2 = cpuSecond() - t2;
@@ -170,13 +188,26 @@ void rehenie_omp2(double *a, double *b, double *x, double *x2, double t, int n, 
 int main(int argc, char **argv){
     int m = 46000;
     int n = m;
-    double *a, *b, *c, *x, t, eps;
+    //std::shared_ptr<double []> a, *b, *c, *x, t, eps;
+    double eps, t;
     eps = 0.00001;
     t = -0.01;
-    a = (double*) malloc(sizeof(*a) * m * n);
-    b = (double*) malloc(sizeof(*b) * m);
-    c = (double*) malloc(sizeof(*c) * m);
-    x = (double*) malloc(sizeof(*x) * m);
+    std::shared_ptr<double[]>    a(new double[sizeof(double) * m * n], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
+    std::shared_ptr<double[]>    b(new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
+    std::shared_ptr<double[]>    c(new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
+    std::shared_ptr<double[]>    x(new double[sizeof(double) * m], [] (double* i) { 
+  delete[] i; // Кастомное удаление
+});
+    //a = (double*) malloc(sizeof(*a) * m * n);
+    //b = (double*) malloc(sizeof(*b) * m);
+    //c = (double*) malloc(sizeof(*c) * m);
+    //x = (double*) malloc(sizeof(*x) * m);
     for (int i = 0; i < m; i++) {
         for (int j = 0; j < n; j++)
             a[i * n + j] = 1.0;
@@ -188,8 +219,8 @@ int main(int argc, char **argv){
     rehenie_omp(a,b,x,c,t,n,m,eps);
     rehenie_omp2(a,b,x,c,t,n,m,eps);
     //run_serial(a,b,c,m,n);
-    free(a);
-    free(b);
-    free(c);
+    //free(a);
+    //free(b);
+    //free(c);
     return 0;
 }
